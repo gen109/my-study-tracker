@@ -16,10 +16,10 @@ app.add_middleware(
 )
 
 # ルーターの登録（後で追加）
-# from app.routers import exams, categories, scores
-# app.include_router(exams.router)
-# app.include_router(categories.router)
-# app.include_router(scores.router)
+from app.routers import exams, categories, scores
+app.include_router(exams.router)
+app.include_router(categories.router)
+app.include_router(scores.router)
 
 @app.get("/")
 def root():
