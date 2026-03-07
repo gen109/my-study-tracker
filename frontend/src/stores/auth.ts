@@ -29,4 +29,6 @@ export const useAuthStore = defineStore('auth', () => {
     logout,
     selectExam,
   }
+}, {
+  persist: true
 })
