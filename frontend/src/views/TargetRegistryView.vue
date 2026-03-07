@@ -46,7 +46,7 @@
           <label>階層カテゴリ</label>
           <div class="category-tree">
             <CategoryNode
-              v-for="(node, index) in categoryTree"
+              v-for="node in categoryTree"
               :key="node.id"
               :node="node"
               :depth="0"

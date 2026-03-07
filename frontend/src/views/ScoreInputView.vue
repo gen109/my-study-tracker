@@ -1,126 +1,272 @@
 <template>
-  <div class="score-row" :style="{ paddingLeft: `${category.depth * 20 + 16}px` }">
-    <span class="col-name">
-      <span v-if="category.depth > 0" class="depth-icon">└</span>
-      {{ category.name }}
-    </span>
-    <span class="col-score">
-      <input
-        type="number"
-        class="score-input"
-        placeholder="満点"
-        min="0"
-        :value="modelValue.max_score"
-        @input="updateField('max_score', ($event.target as HTMLInputElement).value)"
-      />
-    </span>
-    <span class="col-score">
-      <input
-        type="number"
-        class="score-input"
-        placeholder="得点"
-        min="0"
-        :value="modelValue.score"
-        @input="updateField('score', ($event.target as HTMLInputElement).value)"
-      />
-    </span>
-    <span class="col-compare">
-      {{ comparison?.initial ?? '—' }}
-    </span>
-    <span class="col-compare">
-      {{ comparison?.previous ?? '—' }}
-    </span>
-    <span class="col-compare" :class="latestClass">
-      {{ comparison?.latest ?? '—' }}
-    </span>
+  <div class="dashboard">
+
+    <!-- ヘッダー -->
+    <header class="header">
+      <button class="back-btn" @click="router.push('/dashboard')">← 戻る</button>
+      <h1 class="logo">スコア入力</h1>
+      <span class="user-id">👤 {{ authStore.userId }}</span>
+    </header>
+
+    <main class="main">
+
+      <!-- 試験名 -->
+      <div class="section-header">
+        <h2 class="section-title">{{ currentExam?.name ?? '試験' }}</h2>
+      </div>
+
+      <!-- カテゴリ一覧 -->
+      <div v-if="categoryStore.categories.length === 0" class="state-message">
+        <p>カテゴリが登録されていません。</p>
+        <button class="add-btn" @click="router.push('/registry')">
+          試験設定に戻る
+        </button>
+      </div>
+
+      <div v-else>
+        <div class="score-table">
+          <div class="table-header">
+            <span class="col-name">カテゴリ</span>
+            <span class="col-score">満点</span>
+            <span class="col-score">得点</span>
+            <span class="col-compare">初回</span>
+            <span class="col-compare">前回</span>
+            <span class="col-compare">最新</span>
+          </div>
+
+          <template v-for="category in flatCategories" :key="category.category_id">
+            <ScoreRow
+              v-if="scoreInputs[category.category_id]"
+              :category="category"
+              :comparison="getComparison(category.category_id)"
+              :modelValue="scoreInputs[category.category_id]!"
+              @update:modelValue="scoreInputs[category.category_id] = $event"
+            />
+          </template>
+        </div>
+
+        <p v-if="successMessage" class="success">{{ successMessage }}</p>
+        <p v-if="errorMessage" class="error">{{ errorMessage }}</p>
+
+        <button
+          class="submit-btn"
+          :disabled="scoreStore.isLoading"
+          @click="handleSubmit"
+        >
+          {{ scoreStore.isLoading ? '保存中...' : '保存する' }}
+        </button>
+      </div>
+
+    </main>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
-import type { ScoreComparison } from '@/stores/score'
+import { ref, computed, onMounted, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { useAuthStore } from '@/stores/auth'
+import { useExamStore } from '@/stores/exam'
+import { useCategoryStore } from '@/stores/category'
+import { useScoreStore } from '@/stores/score'
+import ScoreRow from '@/components/ScoreRow.vue'
 
-const props = defineProps<{
-  category: { category_id: string; name: string; depth: number }
-  comparison: ScoreComparison | null
-  modelValue: { score: string; max_score: string }
-}>()
+const route = useRoute()
+const router = useRouter()
+const authStore = useAuthStore()
+const examStore = useExamStore()
+const categoryStore = useCategoryStore()
+const scoreStore = useScoreStore()
 
-const emit = defineEmits<{
-  (e: 'update:modelValue', value: { score: string; max_score: string }): void
-}>()
+const examId = route.params.examId as string
+const successMessage = ref('')
+const errorMessage = ref('')
 
-function updateField(field: 'score' | 'max_score', value: string) {
-  emit('update:modelValue', { ...props.modelValue, [field]: value })
+// スコア入力値（category_id → { score, max_score }）
+const scoreInputs = ref<Record<string, { score: string; max_score: string }>>({})
+
+// 現在の試験
+const currentExam = computed(() =>
+  examStore.exams.find((e) => e.exam_id === examId)
+)
+
+// カテゴリをフラットなリストに変換
+const flatCategories = computed(() => {
+  const result: { category_id: string; name: string; depth: number }[] = []
+  const flatten = (nodes: typeof categoryStore.categories, depth = 0) => {
+    for (const node of nodes) {
+      result.push({ category_id: node.category_id, name: node.name, depth })
+      if (node.children?.length) flatten(node.children, depth + 1)
+    }
+  }
+  flatten(categoryStore.categories)
+  return result
+})
+
+// 比較データを取得
+function getComparison(categoryId: string) {
+  return scoreStore.comparisons.find((c) => c.category_id === categoryId) ?? null
 }
 
-const latestClass = computed(() => {
-  const { latest, previous } = props.comparison ?? {}
-  if (latest == null || previous == null) return ''
-  if (latest > previous) return 'up'
-  if (latest < previous) return 'down'
-  return ''
+onMounted(async () => {
+  if (!authStore.userId) return
+  await categoryStore.fetchCategories(authStore.userId, examId)
+  await scoreStore.fetchComparisons(authStore.userId, examId)
 })
+
+// flatCategoriesが更新されたらscoreInputsを初期化
+watch(flatCategories, (cats) => {
+  for (const cat of cats) {
+    if (!scoreInputs.value[cat.category_id]) {
+      scoreInputs.value[cat.category_id] = { score: '', max_score: '' }
+    }
+  }
+})
+
+// 保存処理
+async function handleSubmit() {
+  successMessage.value = ''
+  errorMessage.value = ''
+
+  const entries = Object.entries(scoreInputs.value).filter(
+    ([, v]) => v.score !== '' && v.max_score !== ''
+  )
+
+  if (entries.length === 0) {
+    errorMessage.value = '少なくとも1つのスコアを入力してください'
+    return
+  }
+
+  for (const [categoryId, values] of entries) {
+    await scoreStore.createScore(authStore.userId!, {
+      exam_id: examId,
+      category_id: categoryId,
+      score: Number(values.score),
+      max_score: Number(values.max_score),
+    })
+  }
+
+  if (!scoreStore.errorMessage) {
+    successMessage.value = 'スコアを保存しました！'
+    await scoreStore.fetchComparisons(authStore.userId!, examId)
+  } else {
+    errorMessage.value = scoreStore.errorMessage
+  }
+}
 </script>
 
 <style scoped>
-.score-row {
-  display: grid;
-  grid-template-columns: 2fr 1fr 1fr 1fr 1fr 1fr;
-  align-items: center;
-  padding-top: 0.65rem;
-  padding-bottom: 0.65rem;
-  padding-right: 1rem;
-  border-bottom: 1px solid #f0f4f8;
-  font-size: 0.9rem;
-  color: #2c3e50;
+.dashboard {
+  min-height: 100vh;
+  background-color: #f0f4f8;
 }
 
-.score-row:last-child {
-  border-bottom: none;
-}
-
-.col-name {
+.header {
+  background: white;
+  padding: 1rem 2rem;
   display: flex;
   align-items: center;
-  gap: 0.3rem;
+  justify-content: space-between;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
 }
 
-.depth-icon {
-  color: #bdc3c7;
-  font-size: 0.8rem;
+.logo {
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: #2c3e50;
+  margin: 0;
 }
 
-.col-score {
-  text-align: center;
+.back-btn {
+  background: none;
+  border: none;
+  color: #3498db;
+  font-size: 0.95rem;
+  cursor: pointer;
+  padding: 0;
 }
 
-.col-compare {
-  text-align: center;
+.back-btn:hover { text-decoration: underline; }
+
+.user-id {
+  font-size: 0.9rem;
   color: #7f8c8d;
 }
 
-.score-input {
-  width: 70px;
-  padding: 0.3rem 0.5rem;
-  border: 1px solid #dce1e7;
-  border-radius: 4px;
+.main {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 2rem;
+}
+
+.section-header { margin-bottom: 1.5rem; }
+
+.section-title {
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: #2c3e50;
+  margin: 0;
+}
+
+.score-table {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  overflow: hidden;
+  margin-bottom: 1.5rem;
+}
+
+.table-header {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr 1fr 1fr 1fr;
+  background-color: #f8f9fa;
+  padding: 0.75rem 1rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #7f8c8d;
+  border-bottom: 1px solid #dce1e7;
+}
+
+.col-name { text-align: left; }
+.col-score { text-align: center; }
+.col-compare { text-align: center; }
+
+.submit-btn {
+  width: 100%;
+  padding: 0.75rem;
+  background-color: #3498db;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.submit-btn:hover:not(:disabled) { background-color: #2980b9; }
+.submit-btn:disabled { background-color: #bdc3c7; cursor: not-allowed; }
+
+.add-btn {
+  padding: 0.5rem 1.25rem;
+  background-color: #3498db;
+  color: white;
+  border: none;
+  border-radius: 6px;
   font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.state-message {
   text-align: center;
+  color: #7f8c8d;
+  padding: 3rem 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
 }
 
-.score-input:focus {
-  outline: none;
-  border-color: #3498db;
-}
-
-.up {
-  color: #2980b9;
-  font-weight: 600;
-}
-
-.down {
-  color: #e74c3c;
-  font-weight: 600;
-}
+.success { color: #27ae60; font-size: 0.9rem; margin-bottom: 0.75rem; }
+.error { color: #e74c3c; font-size: 0.9rem; margin-bottom: 0.75rem; }
 </style>

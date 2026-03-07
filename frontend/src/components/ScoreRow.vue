@@ -10,8 +10,8 @@
         class="score-input"
         placeholder="満点"
         min="0"
-        :value="score.max_score"
-        @input="updateScore('max_score', ($event.target as HTMLInputElement).value)"
+        :value="modelValue.max_score"
+        @input="updateField('max_score', ($event.target as HTMLInputElement).value)"
       />
     </span>
     <span class="col-score">
@@ -20,19 +20,13 @@
         class="score-input"
         placeholder="得点"
         min="0"
-        :value="score.score"
-        @input="updateScore('score', ($event.target as HTMLInputElement).value)"
+        :value="modelValue.score"
+        @input="updateField('score', ($event.target as HTMLInputElement).value)"
       />
     </span>
-    <span class="col-compare">
-      {{ comparison?.initial !== null && comparison?.initial !== undefined ? comparison.initial : '—' }}
-    </span>
-    <span class="col-compare">
-      {{ comparison?.previous !== null && comparison?.previous !== undefined ? comparison.previous : '—' }}
-    </span>
-    <span class="col-compare" :class="latestClass">
-      {{ comparison?.latest !== null && comparison?.latest !== undefined ? comparison.latest : '—' }}
-    </span>
+    <span class="col-compare">{{ comparison?.initial ?? '—' }}</span>
+    <span class="col-compare">{{ comparison?.previous ?? '—' }}</span>
+    <span class="col-compare" :class="latestClass">{{ comparison?.latest ?? '—' }}</span>
   </div>
 </template>
 
@@ -43,22 +37,20 @@ import type { ScoreComparison } from '@/stores/score'
 const props = defineProps<{
   category: { category_id: string; name: string; depth: number }
   comparison: ScoreComparison | null
-  score: { score: string; max_score: string }
+  modelValue: { score: string; max_score: string }
 }>()
 
 const emit = defineEmits<{
-  (e: 'update:score', value: { score: string; max_score: string }): void
+  (e: 'update:modelValue', value: { score: string; max_score: string }): void
 }>()
 
-function updateScore(field: 'score' | 'max_score', value: string) {
-  emit('update:score', { ...props.score, [field]: value })
+function updateField(field: 'score' | 'max_score', value: string) {
+  emit('update:modelValue', { ...props.modelValue, [field]: value })
 }
 
-// 最新スコアの色（前回より上がれば青、下がれば赤）
 const latestClass = computed(() => {
   const { latest, previous } = props.comparison ?? {}
-  if (latest === null || latest === undefined) return ''
-  if (previous === null || previous === undefined) return ''
+  if (latest == null || previous == null) return ''
   if (latest > previous) return 'up'
   if (latest < previous) return 'down'
   return ''
@@ -78,29 +70,12 @@ const latestClass = computed(() => {
   color: #2c3e50;
 }
 
-.score-row:last-child {
-  border-bottom: none;
-}
+.score-row:last-child { border-bottom: none; }
 
-.col-name {
-  display: flex;
-  align-items: center;
-  gap: 0.3rem;
-}
-
-.depth-icon {
-  color: #bdc3c7;
-  font-size: 0.8rem;
-}
-
-.col-score {
-  text-align: center;
-}
-
-.col-compare {
-  text-align: center;
-  color: #7f8c8d;
-}
+.col-name { display: flex; align-items: center; gap: 0.3rem; }
+.depth-icon { color: #bdc3c7; font-size: 0.8rem; }
+.col-score { text-align: center; }
+.col-compare { text-align: center; color: #7f8c8d; }
 
 .score-input {
   width: 70px;
@@ -111,18 +86,7 @@ const latestClass = computed(() => {
   text-align: center;
 }
 
-.score-input:focus {
-  outline: none;
-  border-color: #3498db;
-}
-
-.up {
-  color: #2980b9;
-  font-weight: 600;
-}
-
-.down {
-  color: #e74c3c;
-  font-weight: 600;
-}
+.score-input:focus { outline: none; border-color: #3498db; }
+.up { color: #2980b9; font-weight: 600; }
+.down { color: #e74c3c; font-weight: 600; }
 </style>
