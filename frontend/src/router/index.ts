@@ -21,7 +21,13 @@ const router = createRouter({
       name: 'registry',
       component: () => import('@/views/TargetRegistryView.vue'),
       meta: { requiresAuth: true },
-    },    
+    },
+    {
+      path: '/score/:examId',
+      name: 'score',
+      component: () => import('@/views/ScoreInputView.vue'),
+      meta: { requiresAuth: true },
+    },
   ],
 })
 
