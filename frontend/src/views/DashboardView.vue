@@ -76,7 +76,7 @@ function handleLogout() {
 // スコア入力画面へ（暫定）
 function handleGoScore(examId: string) {
   console.log('スコア入力:', examId)
-  // TODO: router.push(`/score/${examId}`)
+  router.push(`/score/${examId}`)
 }
 
 // 分析画面へ（暫定）
