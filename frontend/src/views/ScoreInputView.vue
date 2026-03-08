@@ -26,6 +26,7 @@
       <div v-else>
         <div class="score-table">
           <div class="table-header">
+            <span class="col-check"></span>
             <span class="col-name">カテゴリ</span>
             <span class="col-score">満点</span>
             <span class="col-score">得点</span>
@@ -40,7 +41,9 @@
               :category="category"
               :comparison="getComparison(category.category_id)"
               :modelValue="scoreInputs[category.category_id]!"
+              :enabled="enabledMap[category.category_id] ?? false"
               @update:modelValue="scoreInputs[category.category_id] = $event"
+              @update:enabled="enabledMap[category.category_id] = $event"
             />
           </template>
         </div>
@@ -84,6 +87,9 @@ const errorMessage = ref('')
 // スコア入力値（category_id → { score, max_score }）
 const scoreInputs = ref<Record<string, { score: string; max_score: string }>>({})
 
+// チェック状態（category_id → boolean）
+const enabledMap = ref<Record<string, boolean>>({})
+
 // 現在の試験
 const currentExam = computed(() =>
   examStore.exams.find((e) => e.exam_id === examId)
@@ -113,11 +119,14 @@ onMounted(async () => {
   await scoreStore.fetchComparisons(authStore.userId, examId)
 })
 
-// flatCategoriesが更新されたらscoreInputsを初期化
+// flatCategoriesが更新されたらscoreInputsとenabledMapを初期化
 watch(flatCategories, (cats) => {
   for (const cat of cats) {
     if (!scoreInputs.value[cat.category_id]) {
       scoreInputs.value[cat.category_id] = { score: '', max_score: '' }
+    }
+    if (enabledMap.value[cat.category_id] === undefined) {
+      enabledMap.value[cat.category_id] = false
     }
   }
 })
@@ -127,12 +136,16 @@ async function handleSubmit() {
   successMessage.value = ''
   errorMessage.value = ''
 
+  // チェックが入っていてかつスコアが入力されている行のみ保存
   const entries = Object.entries(scoreInputs.value).filter(
-    ([, v]) => v.score !== '' && v.max_score !== ''
+    ([categoryId, v]) =>
+      enabledMap.value[categoryId] &&
+      v.score !== '' &&
+      v.max_score !== ''
   )
 
   if (entries.length === 0) {
-    errorMessage.value = '少なくとも1つのスコアを入力してください'
+    errorMessage.value = 'チェックを入れてスコアを入力してください'
     return
   }
 
@@ -217,7 +230,7 @@ async function handleSubmit() {
 
 .table-header {
   display: grid;
-  grid-template-columns: 2fr 1fr 1fr 1fr 1fr 1fr;
+  grid-template-columns: 40px 2fr 1fr 1fr 1fr 1fr 1fr;
   background-color: #f8f9fa;
   padding: 0.75rem 1rem;
   font-size: 0.85rem;
@@ -226,6 +239,7 @@ async function handleSubmit() {
   border-bottom: 1px solid #dce1e7;
 }
 
+.col-check { text-align: center; }
 .col-name { text-align: left; }
 .col-score { text-align: center; }
 .col-compare { text-align: center; }

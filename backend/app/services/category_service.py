@@ -39,7 +39,7 @@ def get_categories(user_id: str, exam_id: str) -> List[Category]:
             category_id=row["category_id"],
             name=row["name"],
             exam_id=row["exam_id"],
-            parent_id=row["parent_id"] if row["parent_id"] else None,
+            parent_id=row["parent_id"] if pd.notna(row["parent_id"]) and row["parent_id"] else None,
             children=[],
         )
         for _, row in df.iterrows()

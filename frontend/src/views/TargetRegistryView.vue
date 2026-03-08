@@ -130,7 +130,21 @@ function removeNode(nodeId: string) {
   categoryTree.value = removeFromNodes(categoryTree.value)
 }
 
-// フォーム送信
+// カテゴリツリーをフラットなリストに変換
+function flattenCategories(
+  nodes: CategoryNodeType[],
+  parentId: string | null = null
+): { name: string; parent_id: string | null }[] {
+  const result: { name: string; parent_id: string | null }[] = []
+  for (const node of nodes) {
+    result.push({ name: node.name, parent_id: parentId })
+    if (node.children.length) {
+      result.push(...flattenCategories(node.children, node.id))
+    }
+  }
+  return result
+}
+
 async function handleSubmit() {
   if (!examName.value) {
     errorMessage.value = '試験名称を入力してください'
@@ -140,23 +154,44 @@ async function handleSubmit() {
   successMessage.value = ''
   isLoading.value = true
 
+  // ① 試験を登録
   const result = await examStore.createExam(authStore.userId!, {
     name: examName.value,
     exam_date: examDate.value || null,
     has_range: hasRange.value,
   })
 
-  isLoading.value = false
-
-  if (result) {
-    successMessage.value = `「${result.name}」を登録しました！`
-    examName.value = ''
-    examDate.value = ''
-    hasRange.value = false
-    categoryTree.value = []
-  } else {
+  if (!result) {
     errorMessage.value = examStore.errorMessage
+    isLoading.value = false
+    return
   }
+
+  // ② カテゴリを登録
+  if (hasRange.value && categoryTree.value.length > 0) {
+    const categories = flattenCategories(categoryTree.value)
+    for (const cat of categories) {
+      await fetch(
+        `http://localhost:8000/categories/?user_id=${authStore.userId}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: cat.name,
+            exam_id: result.exam_id,
+            parent_id: cat.parent_id,
+          }),
+        }
+      )
+    }
+  }
+
+  isLoading.value = false
+  successMessage.value = `「${result.name}」を登録しました！`
+  examName.value = ''
+  examDate.value = ''
+  hasRange.value = false
+  categoryTree.value = []
 }
 </script>
 
