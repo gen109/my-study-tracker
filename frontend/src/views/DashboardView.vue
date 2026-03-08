@@ -82,8 +82,7 @@ function handleGoScore(examId: string) {
 
 // 分析画面へ（暫定）
 function handleGoAnalysis(examId: string) {
-  console.log('分析画面:', examId)
-  // TODO: router.push(`/analysis/${examId}`)
+  router.push(`/analysis/${examId}`)
 }
 
 // 試験を削除

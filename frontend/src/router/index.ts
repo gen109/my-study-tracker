@@ -28,6 +28,12 @@ const router = createRouter({
       component: () => import('@/views/ScoreInputView.vue'),
       meta: { requiresAuth: true },
     },
+    {
+      path: '/analysis/:examId',
+      name: 'analysis',
+      component: () => import('@/views/AnalysisView.vue'),
+      meta: { requiresAuth: true },
+    },
   ],
 })
 

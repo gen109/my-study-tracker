@@ -35,15 +35,20 @@ def get_score_comparison(user_id: str, exam_id: str) -> List[ScoreComparison]:
 
     results = []
     for category_id, group in df.groupby("category_id"):
-        records = group["score"].tolist()
+        # 得点率（score / max_score）を計算
+        rates = [
+            round(row["score"] / row["max_score"] * 100, 1)
+            if row["max_score"] > 0 else 0
+            for _, row in group.iterrows()
+        ]
 
-        initial = records[0] if len(records) >= 1 else None
-        previous = records[-2] if len(records) >= 2 else None
-        latest = records[-1] if len(records) >= 1 else None
+        initial = rates[0] if len(rates) >= 1 else None
+        previous = rates[-2] if len(rates) >= 2 else None
+        latest = rates[-1] if len(rates) >= 1 else None
 
         results.append(ScoreComparison(
             category_id=str(category_id),
-            category_name=str(category_id),  # routers側でカテゴリ名を付与
+            category_name=str(category_id),
             initial=initial,
             previous=previous,
             latest=latest,
