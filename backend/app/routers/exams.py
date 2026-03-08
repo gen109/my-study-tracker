@@ -53,3 +53,17 @@ def get_exams(user_id: str):
                         has_range=row["has_range"],
                     ))
     return exams
+
+@router.delete("/{exam_id}")
+def delete_exam(exam_id: str, user_id: str):
+    """試験を削除する"""
+    from pathlib import Path
+    from app.services.csv_service import DATA_ROOT
+    import shutil
+
+    exam_path = DATA_ROOT / user_id / exam_id
+    if not exam_path.exists():
+        raise HTTPException(status_code=404, detail="試験が見つかりません")
+
+    shutil.rmtree(exam_path)
+    return {"message": "削除しました"}

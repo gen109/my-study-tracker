@@ -42,6 +42,7 @@
           :exam="exam"
           @go-score="handleGoScore"
           @go-analysis="handleGoAnalysis"
+          @delete="handleDelete"
         />
       </div>
 
@@ -83,6 +84,13 @@ function handleGoScore(examId: string) {
 function handleGoAnalysis(examId: string) {
   console.log('分析画面:', examId)
   // TODO: router.push(`/analysis/${examId}`)
+}
+
+// 試験を削除
+async function handleDelete(examId: string) {
+  if (authStore.userId) {
+    await examStore.deleteExam(authStore.userId, examId)
+  }
 }
 </script>
 

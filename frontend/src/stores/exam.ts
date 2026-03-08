@@ -58,11 +58,31 @@ export const useExamStore = defineStore('exam', () => {
     }
   }
 
+// 試験を削除
+  async function deleteExam(userId: string, examId: string): Promise<boolean> {
+    isLoading.value = true
+    errorMessage.value = ''
+    try {
+      const response = await fetch(`${API_BASE}/exams/${examId}?user_id=${userId}`, {
+        method: 'DELETE',
+      })
+      if (!response.ok) throw new Error('試験の削除に失敗しました')
+      exams.value = exams.value.filter((e) => e.exam_id !== examId)
+      return true
+    } catch (e) {
+      errorMessage.value = e instanceof Error ? e.message : '不明なエラーが発生しました'
+      return false
+    } finally {
+      isLoading.value = false
+    }
+  }
+
   return {
     exams,
     isLoading,
     errorMessage,
     fetchExams,
     createExam,
+    deleteExam,
   }
 })
