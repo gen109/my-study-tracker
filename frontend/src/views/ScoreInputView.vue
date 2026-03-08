@@ -33,6 +33,7 @@
             <span class="col-compare">初回</span>
             <span class="col-compare">前回</span>
             <span class="col-compare">最新</span>
+            <span class="col-actions"></span>
           </div>
 
           <template v-for="category in flatCategories" :key="category.category_id">
@@ -42,8 +43,13 @@
               :comparison="getComparison(category.category_id)"
               :modelValue="scoreInputs[category.category_id]!"
               :enabled="enabledMap[category.category_id] ?? false"
+              :historyList="scoreStore.histories[category.category_id] ?? []"
+              :isLoadingHistory="loadingHistoryMap[category.category_id] ?? false"
               @update:modelValue="scoreInputs[category.category_id] = $event"
               @update:enabled="enabledMap[category.category_id] = $event"
+              @load-history="loadHistory(category.category_id)"
+              @delete-score="(scoreId) => handleDeleteScore(category.category_id, scoreId)"
+              @update-score="(scoreId, body) => handleUpdateScore(category.category_id, scoreId, body)"
             />
           </template>
         </div>
@@ -71,6 +77,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useExamStore } from '@/stores/exam'
 import { useCategoryStore } from '@/stores/category'
 import { useScoreStore } from '@/stores/score'
+import type { ScoreUpdate } from '@/stores/score'
 import ScoreRow from '@/components/ScoreRow.vue'
 
 const route = useRoute()
@@ -89,6 +96,9 @@ const scoreInputs = ref<Record<string, { score: string; max_score: string }>>({}
 
 // チェック状態（category_id → boolean）
 const enabledMap = ref<Record<string, boolean>>({})
+
+// 履歴読み込み中フラグ（category_id → boolean）
+const loadingHistoryMap = ref<Record<string, boolean>>({})
 
 // 現在の試験
 const currentExam = computed(() =>
@@ -115,6 +125,7 @@ function getComparison(categoryId: string) {
 
 onMounted(async () => {
   if (!authStore.userId) return
+  await examStore.fetchExams(authStore.userId)
   await categoryStore.fetchCategories(authStore.userId, examId)
   await scoreStore.fetchComparisons(authStore.userId, examId)
 })
@@ -131,12 +142,43 @@ watch(flatCategories, (cats) => {
   }
 })
 
+// 履歴を取得
+async function loadHistory(categoryId: string) {
+  if (!authStore.userId) return
+  loadingHistoryMap.value[categoryId] = true
+  await scoreStore.fetchHistory(authStore.userId, examId, categoryId)
+  loadingHistoryMap.value[categoryId] = false
+}
+
+// スコアを削除
+async function handleDeleteScore(categoryId: string, scoreId: string) {
+  if (!authStore.userId) return
+  const ok = await scoreStore.deleteScore(authStore.userId, examId, scoreId, categoryId)
+  if (ok) {
+    await loadHistory(categoryId)
+    await scoreStore.fetchComparisons(authStore.userId, examId)
+  } else {
+    errorMessage.value = scoreStore.errorMessage
+  }
+}
+
+// スコアを編集
+async function handleUpdateScore(categoryId: string, scoreId: string, body: ScoreUpdate) {
+  if (!authStore.userId) return
+  const result = await scoreStore.updateScore(authStore.userId, examId, scoreId, body)
+  if (result) {
+    await loadHistory(categoryId)
+    await scoreStore.fetchComparisons(authStore.userId, examId)
+  } else {
+    errorMessage.value = scoreStore.errorMessage
+  }
+}
+
 // 保存処理
 async function handleSubmit() {
   successMessage.value = ''
   errorMessage.value = ''
 
-  // チェックが入っていてかつスコアが入力されている行のみ保存
   const entries = Object.entries(scoreInputs.value).filter(
     ([categoryId, v]) =>
       enabledMap.value[categoryId] &&
@@ -160,9 +202,18 @@ async function handleSubmit() {
 
   if (!scoreStore.errorMessage) {
     successMessage.value = 'スコアを保存しました！'
+    // 入力値・チェックをリセット
+    for (const cat of flatCategories.value) {
+      scoreInputs.value[cat.category_id] = { score: '', max_score: '' }
+      enabledMap.value[cat.category_id] = false
+    }
     await scoreStore.fetchComparisons(authStore.userId!, examId)
-  } else {
-    errorMessage.value = scoreStore.errorMessage
+    // 開いている履歴パネルを全て再取得
+    for (const cat of flatCategories.value) {
+      if (scoreStore.histories[cat.category_id] !== undefined) {
+        await loadHistory(cat.category_id)
+      }
+    }
   }
 }
 </script>
@@ -230,7 +281,7 @@ async function handleSubmit() {
 
 .table-header {
   display: grid;
-  grid-template-columns: 40px 2fr 1fr 1fr 1fr 1fr 1fr;
+  grid-template-columns: 40px 2fr 1fr 1fr 1fr 1fr 1fr 40px;
   background-color: #f8f9fa;
   padding: 0.75rem 1rem;
   font-size: 0.85rem;
@@ -243,6 +294,7 @@ async function handleSubmit() {
 .col-name { text-align: left; }
 .col-score { text-align: center; }
 .col-compare { text-align: center; }
+.col-actions { text-align: center; }
 
 .submit-btn {
   width: 100%;

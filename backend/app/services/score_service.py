@@ -1,9 +1,9 @@
 import uuid
 import pandas as pd
 from datetime import datetime
-from typing import List
+from typing import List, Optional
 from app.models.score import Score, ScoreCreate, ScoreComparison
-from app.services.csv_service import read_csv, append_csv
+from app.services.csv_service import read_csv, append_csv, write_csv
 
 FILENAME = "scores.csv"
 
@@ -24,18 +24,78 @@ def create_score(user_id: str, score: ScoreCreate) -> Score:
     return Score(**new_row)
 
 
+def update_score(user_id: str, exam_id: str, score_id: str, score: float, max_score: float, note: Optional[str] = None) -> Optional[Score]:
+    """スコアを編集する"""
+    df = read_csv(user_id, exam_id, FILENAME)
+    if df is None:
+        return None
+
+    idx = df[df["score_id"] == score_id].index
+    if idx.empty:
+        return None
+
+    df.loc[idx, "score"] = score
+    df.loc[idx, "max_score"] = max_score
+    df.loc[idx, "note"] = note if note else ""
+    write_csv(user_id, exam_id, FILENAME, df)
+
+    row = df.loc[idx[0]]
+    return Score(
+        score_id=str(row["score_id"]),
+        exam_id=str(row["exam_id"]),
+        category_id=str(row["category_id"]),
+        score=float(row["score"]),
+        max_score=float(row["max_score"]),
+        note=str(row["note"]) if pd.notna(row["note"]) else "",
+        recorded_at=row["recorded_at"],
+    )
+
+
+def delete_score(user_id: str, exam_id: str, score_id: str) -> bool:
+    """スコアを削除する"""
+    df = read_csv(user_id, exam_id, FILENAME)
+    if df is None:
+        return False
+
+    new_df = df[df["score_id"] != score_id]
+    if len(new_df) == len(df):
+        return False
+
+    write_csv(user_id, exam_id, FILENAME, new_df)
+    return True
+
+
+def get_scores_by_category(user_id: str, exam_id: str, category_id: str) -> List[Score]:
+    """カテゴリ別の全スコア履歴を返す"""
+    df = read_csv(user_id, exam_id, FILENAME)
+    if df is None:
+        return []
+
+    df = df[df["category_id"] == category_id].sort_values("recorded_at")
+    return [
+        Score(
+            score_id=str(row["score_id"]),
+            exam_id=str(row["exam_id"]),
+            category_id=str(row["category_id"]),
+            score=float(row["score"]),
+            max_score=float(row["max_score"]),
+            note=str(row["note"]) if pd.notna(row["note"]) else "",
+            recorded_at=row["recorded_at"],
+        )
+        for _, row in df.iterrows()
+    ]
+
+
 def get_score_comparison(user_id: str, exam_id: str) -> List[ScoreComparison]:
     """カテゴリ別に初回・前回・最新スコアを返す"""
     df = read_csv(user_id, exam_id, FILENAME)
     if df is None:
         return []
 
-    # 記録日時で昇順ソート
     df = df.sort_values("recorded_at")
 
     results = []
     for category_id, group in df.groupby("category_id"):
-        # 得点率（score / max_score）を計算
         rates = [
             round(row["score"] / row["max_score"] * 100, 1)
             if row["max_score"] > 0 else 0

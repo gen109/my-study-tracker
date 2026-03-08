@@ -15,6 +15,7 @@ class CategoryCreate(CategoryBase):
 class Category(CategoryBase):
     category_id: str                       # カテゴリID（自動生成）
     children: List["Category"] = []        # 子カテゴリ（再帰構造）
+    is_new: Optional[bool] = True          # 新規登録かどうか（重複チェック用）
 
     class Config:
         from_attributes = True

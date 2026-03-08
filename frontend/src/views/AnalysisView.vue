@@ -28,7 +28,8 @@
         <!-- レーダーチャート -->
         <div class="chart-card">
           <h3 class="chart-title">カテゴリ別得点率（初回・前回・最新）</h3>
-          <v-chart class="chart" :option="radarOption" autoresize />
+          <v-chart v-if="hasEnoughCategories" class="chart" :option="radarOption" autoresize />
+          <p v-else class="chart-notice">レーダーチャートはカテゴリが3つ以上必要です。</p>
         </div>
 
         <!-- 棒グラフ -->
@@ -90,6 +91,11 @@ onMounted(async () => {
   await scoreStore.fetchComparisons(authStore.userId, examId)
 })
 
+// レーダーチャートはカテゴリが3つ以上必要
+const hasEnoughCategories = computed(() =>
+  scoreStore.comparisons.length >= 3
+)
+
 // レーダーチャートのオプション
 const radarOption = computed(() => {
   const comparisons = scoreStore.comparisons
@@ -98,7 +104,7 @@ const radarOption = computed(() => {
     max: 100,
   }))
 
-  const toRate = (v: number | null) => (v !== null ? Math.round(v * 100) : 0)
+  const toRate = (v: number | null) => (v !== null ? Math.round(v) : 0)
 
   return {
     tooltip: { trigger: 'item' },
@@ -146,16 +152,16 @@ const barOption = computed(() => {
   const comparisons = scoreStore.comparisons
   const categories = comparisons.map((c) => c.category_name)
 
-  const toRate = (v: number | null) => (v !== null ? Math.round(v * 100) : null)
+  const toRate = (v: number | null) => (v !== null ? Math.round(v) : null)
 
   return {
     tooltip: {
       trigger: 'axis',
-        formatter: (params: { seriesName: string; value: number | null }[]) =>
-          params
-            .filter((p) => p.value !== null)
-            .map((p) => `${p.seriesName}: ${p.value}%`)
-            .join('<br/>'),
+      formatter: (params: { seriesName: string; value: number | null }[]) =>
+        params
+          .filter((p) => p.value !== null)
+          .map((p) => `${p.seriesName}: ${p.value}%`)
+          .join('<br/>'),
     },
     legend: {
       data: ['初回', '前回', '最新'],
@@ -273,6 +279,13 @@ const barOption = computed(() => {
 .chart {
   height: 360px;
   width: 100%;
+}
+
+.chart-notice {
+  text-align: center;
+  color: #7f8c8d;
+  padding: 2rem 0;
+  font-size: 0.9rem;
 }
 
 .add-btn {

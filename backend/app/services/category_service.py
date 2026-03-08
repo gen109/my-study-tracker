@@ -1,6 +1,6 @@
 import uuid
 import pandas as pd
-from typing import List, Optional
+from typing import List
 from app.models.category import Category, CategoryCreate
 from app.services.csv_service import read_csv, write_csv
 
@@ -8,8 +8,27 @@ FILENAME = "categories.csv"
 
 
 def create_category(user_id: str, category: CategoryCreate) -> Category:
-    """カテゴリを新規登録する"""
+    """カテゴリを新規登録する（同名・同階層の重複はスキップしis_new=Falseを返す）"""
     df = read_csv(user_id, category.exam_id, FILENAME)
+
+    # 重複チェック（同じ name かつ同じ parent_id が既に存在する場合はスキップ）
+    if df is not None:
+        parent_id_val = category.parent_id if category.parent_id else ""
+        duplicates = df[
+            (df["name"] == category.name) &
+            (df["parent_id"].fillna("") == parent_id_val)
+        ]
+        if not duplicates.empty:
+            existing = duplicates.iloc[0]
+            result = Category(
+                category_id=existing["category_id"],
+                name=existing["name"],
+                exam_id=existing["exam_id"],
+                parent_id=existing["parent_id"] if pd.notna(existing["parent_id"]) and existing["parent_id"] else None,
+                children=[],
+            )
+            result.is_new = False
+            return result
 
     new_row = {
         "category_id": str(uuid.uuid4()),
@@ -24,7 +43,9 @@ def create_category(user_id: str, category: CategoryCreate) -> Category:
         df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
 
     write_csv(user_id, category.exam_id, FILENAME, df)
-    return Category(**{**new_row, "children": []})
+    result = Category(**{**new_row, "children": []})
+    result.is_new = True
+    return result
 
 
 def get_categories(user_id: str, exam_id: str) -> List[Category]:
@@ -33,7 +54,6 @@ def get_categories(user_id: str, exam_id: str) -> List[Category]:
     if df is None:
         return []
 
-    # 全カテゴリをフラットなリストとして取得
     all_categories = {
         row["category_id"]: Category(
             category_id=row["category_id"],
@@ -45,7 +65,6 @@ def get_categories(user_id: str, exam_id: str) -> List[Category]:
         for _, row in df.iterrows()
     }
 
-    # 階層構造を組み立て
     roots = []
     for category in all_categories.values():
         if category.parent_id and category.parent_id in all_categories:

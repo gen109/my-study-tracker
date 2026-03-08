@@ -11,8 +11,22 @@ FILENAME = "exams.csv"
 
 @router.post("/", response_model=Exam)
 def create_exam(user_id: str, exam: ExamCreate):
-    """試験を新規登録する"""
-    # user_idはパスではなくクエリパラメータで受け取る（認証実装前の暫定）
+    """試験を新規登録する（同名試験の重複登録を防止）"""
+    from app.services.csv_service import DATA_ROOT
+
+    user_path = DATA_ROOT / user_id
+    if user_path.exists():
+        for exam_dir in user_path.iterdir():
+            if exam_dir.is_dir():
+                df = read_csv(user_id, exam_dir.name, FILENAME)
+                if df is not None:
+                    for _, row in df.iterrows():
+                        if row["name"] == exam.name:
+                            raise HTTPException(
+                                status_code=400,
+                                detail=f"「{exam.name}」はすでに登録されています"
+                            )
+
     new_row = {
         "exam_id": str(uuid.uuid4()),
         "name": exam.name,
@@ -33,7 +47,6 @@ def create_exam(user_id: str, exam: ExamCreate):
 @router.get("/", response_model=list[Exam])
 def get_exams(user_id: str):
     """試験一覧を取得する"""
-    from pathlib import Path
     from app.services.csv_service import DATA_ROOT
 
     user_path = DATA_ROOT / user_id
@@ -54,10 +67,10 @@ def get_exams(user_id: str):
                     ))
     return exams
 
+
 @router.delete("/{exam_id}")
 def delete_exam(exam_id: str, user_id: str):
     """試験を削除する"""
-    from pathlib import Path
     from app.services.csv_service import DATA_ROOT
     import shutil
 

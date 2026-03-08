@@ -16,9 +16,14 @@
       <!-- タイトルエリア -->
       <div class="section-header">
         <h2 class="section-title">試験一覧</h2>
-        <button class="add-btn" @click="router.push('/registry')">
-          ＋ 試験を追加
-        </button>
+        <div class="header-actions">
+          <button class="master-btn" @click="router.push('/master')">
+            📚 出題範囲マスタ
+          </button>
+          <button class="add-btn" @click="router.push('/registry')">
+            ＋ 試験を追加
+          </button>
+        </div>
       </div>
 
       <!-- ローディング -->
@@ -61,31 +66,25 @@ const router = useRouter()
 const authStore = useAuthStore()
 const examStore = useExamStore()
 
-// 試験一覧を取得
 onMounted(async () => {
   if (authStore.userId) {
     await examStore.fetchExams(authStore.userId)
   }
 })
 
-// ログアウト
 function handleLogout() {
   authStore.logout()
   router.push('/')
 }
 
-// スコア入力画面へ（暫定）
 function handleGoScore(examId: string) {
-  console.log('スコア入力:', examId)
   router.push(`/score/${examId}`)
 }
 
-// 分析画面へ（暫定）
 function handleGoAnalysis(examId: string) {
   router.push(`/analysis/${examId}`)
 }
 
-// 試験を削除
 async function handleDelete(examId: string) {
   if (authStore.userId) {
     await examStore.deleteExam(authStore.userId, examId)
@@ -162,6 +161,25 @@ async function handleDelete(examId: string) {
   margin: 0;
 }
 
+.header-actions {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.master-btn {
+  padding: 0.5rem 1.25rem;
+  background-color: #8e44ad;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.master-btn:hover { background-color: #7d3c98; }
+
 .add-btn {
   padding: 0.5rem 1.25rem;
   background-color: #3498db;
@@ -174,9 +192,7 @@ async function handleDelete(examId: string) {
   transition: background-color 0.2s;
 }
 
-.add-btn:hover {
-  background-color: #2980b9;
-}
+.add-btn:hover { background-color: #2980b9; }
 
 .exam-grid {
   display: grid;

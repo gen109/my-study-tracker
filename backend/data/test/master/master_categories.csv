@@ -1,0 +1,8 @@
+master_id,name,parent_id
+f8a6198c-4660-4886-b60a-a8066d5d6022,科目A,
+a1df2cc2-edec-4aad-9857-0b8d496556da,テクノロジ系,f8a6198c-4660-4886-b60a-a8066d5d6022
+1476b7ca-80c1-4bec-92b7-86185951c2e4,基礎理論,a1df2cc2-edec-4aad-9857-0b8d496556da
+22e161e4-cf96-4652-be4b-6171adbab98a,コンピューターシステム,a1df2cc2-edec-4aad-9857-0b8d496556da
+1395b4ad-5e7d-4f8e-a7aa-08cbc8906743,コンピュータ構成要素,22e161e4-cf96-4652-be4b-6171adbab98a
+399a82be-6a5e-45ea-8874-8e8420b98f07,アルゴリズムとプログラミング,1476b7ca-80c1-4bec-92b7-86185951c2e4
+50f9ba56-590f-4f10-b9c5-ed191c91ae3f,基礎理論,1476b7ca-80c1-4bec-92b7-86185951c2e4

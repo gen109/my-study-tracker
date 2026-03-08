@@ -29,3 +29,9 @@ class ScoreComparison(BaseModel):
     initial: Optional[float] = None        # 初回スコア
     previous: Optional[float] = None       # 前回スコア
     latest: Optional[float] = None         # 最新スコア
+
+
+class ScoreUpdate(BaseModel):
+    score: float
+    max_score: float
+    note: Optional[str] = None

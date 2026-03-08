@@ -46,7 +46,11 @@ export const useExamStore = defineStore('exam', () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(exam),
       })
-      if (!response.ok) throw new Error('試験の登録に失敗しました')
+      if (!response.ok) {
+        // バックエンドのエラーメッセージを取得
+        const data = await response.json()
+        throw new Error(data.detail ?? '試験の登録に失敗しました')
+      }
       const created: Exam = await response.json()
       exams.value.push(created)
       return created
@@ -58,7 +62,7 @@ export const useExamStore = defineStore('exam', () => {
     }
   }
 
-// 試験を削除
+  // 試験を削除
   async function deleteExam(userId: string, examId: string): Promise<boolean> {
     isLoading.value = true
     errorMessage.value = ''
