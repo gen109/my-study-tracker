@@ -85,26 +85,34 @@ const currentExam = computed(() =>
   examStore.exams.find((e) => e.exam_id === examId)
 )
 
+const hasEnoughCategories = computed(() =>
+  scoreStore.comparisons.length >= 3
+)
+
 onMounted(async () => {
   if (!authStore.userId) return
   await examStore.fetchExams(authStore.userId)
   await scoreStore.fetchComparisons(authStore.userId, examId)
 })
 
-// レーダーチャートはカテゴリが3つ以上必要
-const hasEnoughCategories = computed(() =>
-  scoreStore.comparisons.length >= 3
-)
+// バックエンドは score/max_score の生値を返すので、ここで%に変換
+const toRate = (v: number | null): number => {
+  if (v === null) return 0
+  // 値が1以下なら割合（0〜1）、それ以上なら生スコアと判断して変換しない
+  return v <= 1 ? Math.round(v * 100) : Math.round(v)
+}
 
-// レーダーチャートのオプション
+const toRateNullable = (v: number | null): number | null => {
+  if (v === null) return null
+  return v <= 1 ? Math.round(v * 100) : Math.round(v)
+}
+
 const radarOption = computed(() => {
   const comparisons = scoreStore.comparisons
   const indicators = comparisons.map((c) => ({
     name: c.category_name,
     max: 100,
   }))
-
-  const toRate = (v: number | null) => (v !== null ? Math.round(v) : 0)
 
   return {
     tooltip: { trigger: 'item' },
@@ -147,12 +155,9 @@ const radarOption = computed(() => {
   }
 })
 
-// 棒グラフのオプション
 const barOption = computed(() => {
   const comparisons = scoreStore.comparisons
   const categories = comparisons.map((c) => c.category_name)
-
-  const toRate = (v: number | null) => (v !== null ? Math.round(v) : null)
 
   return {
     tooltip: {
@@ -183,19 +188,19 @@ const barOption = computed(() => {
       {
         name: '初回',
         type: 'bar',
-        data: comparisons.map((c) => toRate(c.initial)),
+        data: comparisons.map((c) => toRateNullable(c.initial)),
         itemStyle: { color: '#95a5a6' },
       },
       {
         name: '前回',
         type: 'bar',
-        data: comparisons.map((c) => toRate(c.previous)),
+        data: comparisons.map((c) => toRateNullable(c.previous)),
         itemStyle: { color: '#3498db' },
       },
       {
         name: '最新',
         type: 'bar',
-        data: comparisons.map((c) => toRate(c.latest)),
+        data: comparisons.map((c) => toRateNullable(c.latest)),
         itemStyle: { color: '#27ae60' },
       },
     ],

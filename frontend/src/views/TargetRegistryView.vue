@@ -6,7 +6,7 @@
 
       <!-- モード切替 -->
       <div class="mode-tabs">
-        <button class="tab-btn" :class="{ active: mode === 'new' }" @click="switchToNewMode">新規登録</button>
+        <button class="tab-btn" :class="{ active: mode === 'new' }" @click="mode = 'new'">新規登録</button>
         <button class="tab-btn" :class="{ active: mode === 'add' }" @click="switchToAddMode">カテゴリ追加</button>
       </div>
 
@@ -32,12 +32,7 @@
         </div>
 
         <div v-if="hasRange" class="form-group">
-          <div class="category-label-row">
-            <label>階層カテゴリ</label>
-            <button type="button" class="master-load-btn" @click="openMasterModal()">
-              📚 マスタから読み込む
-            </button>
-          </div>
+          <label>階層カテゴリ</label>
           <div class="category-tree">
             <CategoryNode
               v-for="node in categoryTree"
@@ -77,12 +72,7 @@
         </div>
 
         <div class="form-group">
-          <div class="category-label-row">
-            <label>追加するカテゴリ</label>
-            <button type="button" class="master-load-btn" @click="openMasterModal()">
-              📚 マスタから読み込む
-            </button>
-          </div>
+          <label>追加するカテゴリ</label>
           <div class="category-tree">
             <CategoryNode
               v-for="node in categoryTree"
@@ -108,42 +98,6 @@
 
       </form>
     </div>
-
-    <!-- マスタ読み込みモーダル -->
-    <div v-if="showMasterModal" class="modal-overlay" @click.self="showMasterModal = false">
-      <div class="modal">
-        <div class="modal-header">
-          <h2 class="modal-title">出題範囲マスタから読み込む</h2>
-          <button class="modal-close" @click="showMasterModal = false">✕</button>
-        </div>
-
-        <div v-if="masterStore.isLoading" class="modal-loading">読み込み中...</div>
-        <div v-else-if="masterStore.categories.length === 0" class="modal-empty">
-          <p>マスタが登録されていません。</p>
-          <button class="link-btn" @click="router.push('/master')">出題範囲マスタを登録する</button>
-        </div>
-        <div v-else>
-          <p class="modal-note">登録したいカテゴリにチェックを入れてください。</p>
-          <div class="master-check-tree">
-            <MasterCheckNode
-              v-for="node in masterStore.categories"
-              :key="node.master_id"
-              :node="node"
-              :depth="0"
-              :selected-ids="selectedMasterIds"
-              @toggle="toggleMasterId"
-            />
-          </div>
-          <div class="modal-footer">
-            <button class="cancel-btn" @click="showMasterModal = false">キャンセル</button>
-            <button class="confirm-btn" @click="applyMasterSelection">
-              選択した範囲を読み込む（{{ selectedMasterIds.size }}件）
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-
   </div>
 </template>
 
@@ -152,15 +106,11 @@ import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useExamStore } from '@/stores/exam'
-import { useMasterStore } from '@/stores/master'
-import type { MasterCategory } from '@/stores/master'
 import CategoryNode from '@/components/CategoryNode.vue'
-import MasterCheckNode from '@/components/MasterCheckNode.vue'
 
 const router = useRouter()
 const authStore = useAuthStore()
 const examStore = useExamStore()
-const masterStore = useMasterStore()
 
 const mode = ref<'new' | 'add'>('new')
 const examName = ref('')
@@ -170,10 +120,6 @@ const selectedExamId = ref('')
 const errorMessage = ref('')
 const successMessage = ref('')
 const isLoading = ref(false)
-
-// マスタモーダル
-const showMasterModal = ref(false)
-const selectedMasterIds = ref<Set<string>>(new Set())
 
 interface CategoryNodeType {
   id: string
@@ -189,21 +135,11 @@ onMounted(async () => {
   }
 })
 
-function resetMessages() {
-  errorMessage.value = ''
-  successMessage.value = ''
-}
-
-function switchToNewMode() {
-  mode.value = 'new'
-  categoryTree.value = []
-  resetMessages()
-}
-
 async function switchToAddMode() {
   mode.value = 'add'
   categoryTree.value = []
-  resetMessages()
+  errorMessage.value = ''
+  successMessage.value = ''
   if (authStore.userId) {
     await examStore.fetchExams(authStore.userId)
   }
@@ -234,83 +170,6 @@ function removeNode(nodeId: string) {
       .map((n) => ({ ...n, children: removeFromNodes(n.children) }))
   }
   categoryTree.value = removeFromNodes(categoryTree.value)
-}
-
-// マスタモーダルを開く
-async function openMasterModal() {
-  selectedMasterIds.value = new Set()
-  showMasterModal.value = true
-  if (authStore.userId) {
-    await masterStore.fetchCategories(authStore.userId)
-  }
-}
-
-// チェックボックスのトグル
-function toggleMasterId(masterId: string) {
-  if (selectedMasterIds.value.has(masterId)) {
-    selectedMasterIds.value.delete(masterId)
-  } else {
-    selectedMasterIds.value.add(masterId)
-  }
-  // Set の reactivity を保つため再代入
-  selectedMasterIds.value = new Set(selectedMasterIds.value)
-}
-
-// 選択したマスタカテゴリをツリーに変換して読み込む
-function applyMasterSelection() {
-  const selectedIds = selectedMasterIds.value
-
-  // 選択されたノードを収集（フラット）
-  const flatSelected: Map<string, MasterCategory> = new Map()
-  function collectSelected(nodes: MasterCategory[]) {
-    for (const node of nodes) {
-      if (selectedIds.has(node.master_id)) {
-        flatSelected.set(node.master_id, node)
-      }
-      if (node.children?.length) collectSelected(node.children)
-    }
-  }
-  collectSelected(masterStore.categories)
-
-  // master_id → 新しい一時ID のマッピング
-  const masterToTempId: Map<string, string> = new Map()
-
-  // 選択ノードを CategoryNodeType に変換（階層を保持）
-  function buildTree(nodes: MasterCategory[]): CategoryNodeType[] {
-    const result: CategoryNodeType[] = []
-    for (const node of nodes) {
-      if (!selectedIds.has(node.master_id)) continue
-      const tempId = crypto.randomUUID()
-      masterToTempId.set(node.master_id, tempId)
-      const children = node.children?.length ? buildTree(node.children) : []
-      result.push({ id: tempId, name: node.name, children })
-    }
-    return result
-  }
-
-  const newNodes = buildTree(masterStore.categories)
-
-  // 既存ツリーに追加（重複名を除外）
-  const existingNames = new Set<string>()
-  function collectNames(nodes: CategoryNodeType[]) {
-    for (const n of nodes) {
-      existingNames.add(n.name)
-      if (n.children?.length) collectNames(n.children)
-    }
-  }
-  collectNames(categoryTree.value)
-
-  function filterDuplicates(nodes: CategoryNodeType[]): CategoryNodeType[] {
-    return nodes
-      .filter((n) => !existingNames.has(n.name))
-      .map((n) => ({ ...n, children: filterDuplicates(n.children) }))
-  }
-
-  const filtered = filterDuplicates(newNodes)
-  categoryTree.value = [...categoryTree.value, ...filtered]
-
-  showMasterModal.value = false
-  selectedMasterIds.value = new Set()
 }
 
 // カテゴリを登録する共通処理（一時ID→実際のcategory_id マッピング）
@@ -357,7 +216,8 @@ async function handleSubmit() {
     errorMessage.value = '試験名称を入力してください'
     return
   }
-  resetMessages()
+  errorMessage.value = ''
+  successMessage.value = ''
   isLoading.value = true
 
   const result = await examStore.createExam(authStore.userId!, {
@@ -398,7 +258,8 @@ async function handleAddCategories() {
     errorMessage.value = 'カテゴリを追加してください'
     return
   }
-  resetMessages()
+  errorMessage.value = ''
+  successMessage.value = ''
   isLoading.value = true
 
   const ok = await registerCategories(selectedExamId.value, categoryTree.value)
@@ -467,29 +328,6 @@ async function handleAddCategories() {
 .tab-btn:hover { color: #3498db; }
 
 .form-group { margin-bottom: 1.5rem; }
-
-.category-label-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 0.4rem;
-}
-
-.category-label-row label { margin-bottom: 0; }
-
-.master-load-btn {
-  background: none;
-  border: 1px solid #8e44ad;
-  color: #8e44ad;
-  padding: 0.3rem 0.75rem;
-  border-radius: 6px;
-  font-size: 0.8rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background-color 0.2s;
-}
-
-.master-load-btn:hover { background-color: #f5eef8; }
 
 label {
   display: block;
@@ -582,124 +420,4 @@ input[type='date']:focus { outline: none; border-color: #3498db; }
 
 .error { color: #e74c3c; font-size: 0.85rem; margin-bottom: 0.75rem; }
 .success { color: #27ae60; font-size: 0.85rem; margin-bottom: 0.75rem; }
-
-/* モーダル */
-.modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 100;
-}
-
-.modal {
-  background: white;
-  border-radius: 12px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
-  width: 100%;
-  max-width: 480px;
-  max-height: 80vh;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-.modal-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 1.25rem 1.5rem;
-  border-bottom: 1px solid #f0f4f8;
-}
-
-.modal-title {
-  font-size: 1.1rem;
-  font-weight: 700;
-  color: #2c3e50;
-  margin: 0;
-}
-
-.modal-close {
-  background: none;
-  border: none;
-  color: #7f8c8d;
-  font-size: 1rem;
-  cursor: pointer;
-}
-
-.modal-close:hover { color: #e74c3c; }
-
-.modal-note {
-  font-size: 0.85rem;
-  color: #7f8c8d;
-  padding: 0.75rem 1.5rem 0;
-  margin: 0;
-}
-
-.modal-loading,
-.modal-empty {
-  padding: 2rem;
-  text-align: center;
-  color: #7f8c8d;
-  font-size: 0.9rem;
-}
-
-.modal-empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.75rem;
-}
-
-.master-check-tree {
-  padding: 0.75rem 1.5rem;
-  overflow-y: auto;
-  max-height: 50vh;
-}
-
-.modal-footer {
-  display: flex;
-  gap: 0.75rem;
-  padding: 1rem 1.5rem;
-  border-top: 1px solid #f0f4f8;
-}
-
-.cancel-btn {
-  flex: 1;
-  padding: 0.6rem;
-  background: #f0f4f8;
-  border: none;
-  border-radius: 6px;
-  font-size: 0.9rem;
-  font-weight: 600;
-  color: #7f8c8d;
-  cursor: pointer;
-}
-
-.cancel-btn:hover { background: #e5e8e8; }
-
-.confirm-btn {
-  flex: 2;
-  padding: 0.6rem;
-  background: #8e44ad;
-  border: none;
-  border-radius: 6px;
-  font-size: 0.9rem;
-  font-weight: 600;
-  color: white;
-  cursor: pointer;
-}
-
-.confirm-btn:hover { background: #7d3c98; }
-
-.link-btn {
-  background: none;
-  border: none;
-  color: #3498db;
-  font-size: 0.9rem;
-  cursor: pointer;
-  text-decoration: underline;
-}
 </style>

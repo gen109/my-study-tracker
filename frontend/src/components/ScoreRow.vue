@@ -79,27 +79,10 @@
 
           <!-- 編集モード -->
           <template v-else>
-            <input
-              v-model="editScore"
-              type="number"
-              class="edit-input"
-              placeholder="得点"
-              min="0"
-            />
+            <input v-model="editScore" type="number" class="edit-input" placeholder="得点" min="0" />
             <span class="history-sep">/</span>
-            <input
-              v-model="editMaxScore"
-              type="number"
-              class="edit-input"
-              placeholder="満点"
-              min="0"
-            />
-            <input
-              v-model="editNote"
-              type="text"
-              class="edit-input edit-note"
-              placeholder="メモ"
-            />
+            <input v-model="editMaxScore" type="number" class="edit-input" placeholder="満点" min="0" />
+            <input v-model="editNote" type="text" class="edit-input edit-note" placeholder="メモ" />
             <div class="history-btns">
               <button class="save-btn" @click="submitEdit(item)">保存</button>
               <button class="cancel-btn" @click="cancelEdit">キャンセル</button>
@@ -113,14 +96,28 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import type { Score, ScoreComparison, ScoreUpdate } from '@/stores/score'
+import type { ScoreComparison } from '@/stores/score'
+
+interface ScoreRecord {
+  score_id: string
+  score: number
+  max_score: number
+  note?: string
+  recorded_at: string
+}
+
+interface ScoreUpdateBody {
+  score: number
+  max_score: number
+  note?: string
+}
 
 const props = defineProps<{
   category: { category_id: string; name: string; depth: number }
   comparison: ScoreComparison | null
   modelValue: { score: string; max_score: string }
   enabled: boolean
-  historyList: Score[]
+  historyList: ScoreRecord[]
   isLoadingHistory: boolean
 }>()
 
@@ -129,7 +126,7 @@ const emit = defineEmits<{
   (e: 'update:enabled', value: boolean): void
   (e: 'load-history'): void
   (e: 'delete-score', scoreId: string): void
-  (e: 'update-score', scoreId: string, body: ScoreUpdate): void
+  (e: 'update-score', scoreId: string, body: ScoreUpdateBody): void
 }>()
 
 const showHistory = ref(false)
@@ -150,7 +147,7 @@ function formatDate(dateStr: string): string {
   return `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()}`
 }
 
-function startEdit(item: Score) {
+function startEdit(item: ScoreRecord) {
   editingScoreId.value = item.score_id
   editScore.value = String(item.score)
   editMaxScore.value = String(item.max_score)
@@ -161,7 +158,7 @@ function cancelEdit() {
   editingScoreId.value = null
 }
 
-function submitEdit(item: Score) {
+function submitEdit(item: ScoreRecord) {
   emit('update-score', item.score_id, {
     score: parseFloat(editScore.value),
     max_score: parseFloat(editMaxScore.value),
@@ -182,7 +179,6 @@ const latestClass = computed(() => {
   return ''
 })
 
-// 履歴が更新されたら編集モードを解除
 watch(() => props.historyList, () => {
   editingScoreId.value = null
 })
@@ -192,7 +188,6 @@ watch(() => props.historyList, () => {
 .score-row-wrapper {
   border-bottom: 1px solid #f0f4f8;
 }
-
 .score-row-wrapper:last-child {
   border-bottom: none;
 }
@@ -226,7 +221,6 @@ watch(() => props.historyList, () => {
   text-align: center;
   transition: background-color 0.2s;
 }
-
 .score-input:focus { outline: none; border-color: #3498db; }
 .score-input:disabled { background-color: #f2f3f4; color: #bdc3c7; cursor: not-allowed; }
 
@@ -241,10 +235,8 @@ watch(() => props.historyList, () => {
   font-size: 0.75rem;
   padding: 0.2rem 0.4rem;
 }
-
 .icon-btn:hover { color: #3498db; }
 
-/* 履歴パネル */
 .history-panel {
   background: #f8fafc;
   border-top: 1px solid #f0f4f8;
@@ -273,31 +265,16 @@ watch(() => props.historyList, () => {
   padding: 0.3rem 0;
 }
 
-.history-label {
-  font-weight: 600;
-  color: #2c3e50;
-}
-
+.history-label { font-weight: 600; color: #2c3e50; }
 .history-date { color: #7f8c8d; }
 .history-score { color: #2c3e50; }
-
-.history-rate {
-  font-weight: 600;
-  color: #3498db;
-}
-
+.history-rate { font-weight: 600; color: #3498db; }
 .history-note { color: #7f8c8d; font-size: 0.8rem; }
 .history-sep { color: #7f8c8d; }
 
-.history-btns {
-  display: flex;
-  gap: 0.4rem;
-}
+.history-btns { display: flex; gap: 0.4rem; }
 
-.edit-btn,
-.delete-btn,
-.save-btn,
-.cancel-btn {
+.edit-btn, .delete-btn, .save-btn, .cancel-btn {
   padding: 0.2rem 0.6rem;
   border: none;
   border-radius: 4px;
@@ -307,13 +284,10 @@ watch(() => props.historyList, () => {
 
 .edit-btn { background: #ebf5fb; color: #2980b9; }
 .edit-btn:hover { background: #d6eaf8; }
-
 .delete-btn { background: #fdf0f0; color: #e74c3c; }
 .delete-btn:hover { background: #fadbd8; }
-
 .save-btn { background: #eafaf1; color: #27ae60; }
 .save-btn:hover { background: #d5f5e3; }
-
 .cancel-btn { background: #f2f3f4; color: #7f8c8d; }
 .cancel-btn:hover { background: #e5e8e8; }
 
@@ -325,11 +299,6 @@ watch(() => props.historyList, () => {
   font-size: 0.85rem;
   text-align: center;
 }
-
-.edit-note {
-  width: 120px;
-  text-align: left;
-}
-
+.edit-note { width: 120px; text-align: left; }
 .edit-input:focus { outline: none; border-color: #3498db; }
 </style>
