@@ -91,8 +91,19 @@ const csvInput = ref<HTMLInputElement | null>(null)
 
 // CSVテンプレートのデータURL
 const csvTemplateUrl = computed(() => {
-  const content = 'name,parent_name\n科目A,\nテクノロジ系,科目A\n基礎理論,テクノロジ系\n'
-  const blob = new Blob([content], { type: 'text/csv' })
+  const content = [
+    '階層1',
+    '\t階層2-1',
+    '\t\t階層3-1',
+    '\t\t\t階層4-1',
+    '\t\t\t階層4-2',
+    '\t\t階層3-2',
+    '\t\t\t階層4-1',
+    '\t階層2-2',
+    '\t\t階層3-1',
+    '\t\t\t階層4-1',
+  ].join('\n') + '\n'
+  const blob = new Blob([content], { type: 'text/plain' })
   return URL.createObjectURL(blob)
 })
 

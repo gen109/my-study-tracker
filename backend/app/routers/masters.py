@@ -1,7 +1,5 @@
 from fastapi import APIRouter, HTTPException, UploadFile, File
 from typing import List
-import io
-import pandas as pd
 from app.models.master import MasterCategory, MasterCategoryCreate
 from app.services.master_service import (
     create_master_category,
@@ -37,15 +35,22 @@ def remove_master_category(master_id: str, user_id: str):
 @router.post("/import-csv")
 def import_csv(user_id: str, file: UploadFile = File(...)):
     """CSVからマスタカテゴリを一括インポートする
-    CSVフォーマット（ヘッダー必須）:
-      name, parent_name
+
+    CSVフォーマット（ヘッダーなし・タブで階層を表現）:
+      タブ0個 = 階層1（ルート）
+      タブ1個 = 階層2
+      タブ2個 = 階層3
+      タブ3個 = 階層4
+
     例:
-      科目A,
-      テクノロジ系,科目A
-      基礎理論,テクノロジ系
+      科目A
+      [TAB]テクノロジ系
+      [TAB][TAB]基礎理論
+      [TAB][TAB][TAB]基礎理論
+      [TAB][TAB][TAB]アルゴリズムとプログラミング
+      科目B
     """
     content = file.file.read().decode("utf-8-sig")
-    df = pd.read_csv(io.StringIO(content), dtype=str).fillna("")
-    rows = df.to_dict(orient="records")
-    count = import_master_from_csv(user_id, rows)
+    lines = content.splitlines()
+    count = import_master_from_csv(user_id, lines)
     return {"message": f"{count}件のカテゴリをインポートしました"}

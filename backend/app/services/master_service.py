@@ -97,7 +97,6 @@ def delete_master_category(user_id: str, master_id: str) -> bool:
     if df is None:
         return False
 
-    # 削除対象IDを再帰的に収集
     def collect_ids(target_id: str) -> set:
         ids = {target_id}
         children = df[df["parent_id"].fillna("") == target_id]["master_id"].tolist()
@@ -111,36 +110,86 @@ def delete_master_category(user_id: str, master_id: str) -> bool:
     return True
 
 
-def import_master_from_csv(user_id: str, rows: List[dict]) -> int:
+def import_master_from_csv(user_id: str, lines: List[str]) -> int:
     """CSVからマスタカテゴリを一括インポート
-    CSVフォーマット: name, parent_name（親カテゴリ名。ルートの場合は空）
+
+    CSVフォーマット（ヘッダーなし）:
+      タブ文字の数で階層を表現する。
+      タブ0個 = 階層1（ルート）
+      タブ1個 = 階層2
+      タブ2個 = 階層3
+      タブ3個 = 階層4
+      ...
+
+    例:
+      科目A
+      \tテクノロジ系
+      \t\t基礎理論
+      \t\t\t基礎理論
+      \t\t\tアルゴリズムとプログラミング
+      \t\tコンピュータ構成要素
+      \t\t\tプロセッサ
+      科目B
+      ...
     """
     df = _read_master(user_id)
 
-    # name → master_id のマッピング（既存 + 今回追加分）
-    name_map: dict = {}
-    if df is not None:
-        for _, row in df.iterrows():
-            name_map[row["name"]] = row["master_id"]
+    # master_id スタック（深さ → master_id）
+    # stack[i] = 深さiの直近のmaster_id
+    id_stack: List[Optional[str]] = []
 
     new_rows = []
-    for row in rows:
-        name = str(row.get("name", "")).strip()
-        parent_name = str(row.get("parent_name", "")).strip()
+
+    # 既存データの name+parent_id セットで重複チェック
+    existing_set = set()
+    if df is not None:
+        for _, row in df.iterrows():
+            existing_set.add((row["name"], row["parent_id"] if pd.notna(row["parent_id"]) else ""))
+
+    # 既存データのmaster_idも名前→IDで参照できるように
+    # （同名が複数ある可能性があるため、ここでは使わずスタックで管理）
+
+    for line in lines:
+        # 空行スキップ
+        if not line.strip():
+            continue
+
+        # タブ数を数えて深さを算出
+        depth = 0
+        for ch in line:
+            if ch == "\t":
+                depth += 1
+            else:
+                break
+
+        name = line.strip()
         if not name:
             continue
 
-        parent_id = name_map.get(parent_name, "") if parent_name else ""
+        # 深さに合わせてスタックを調整
+        # スタックを現在の深さに切り詰める
+        id_stack = id_stack[:depth]
+
+        # 親IDを取得（depth=0ならルート）
+        parent_id = id_stack[depth - 1] if depth > 0 and len(id_stack) >= depth else ""
 
         # 重複チェック
-        if df is not None:
-            dup = df[
-                (df["name"] == name) &
-                (df["parent_id"].fillna("") == parent_id)
-            ]
-            if not dup.empty:
-                name_map[name] = dup.iloc[0]["master_id"]
-                continue
+        key = (name, parent_id)
+        if key in existing_set:
+            # 既存のIDをスタックに積む必要があるため取得
+            if df is not None:
+                matched = df[
+                    (df["name"] == name) &
+                    (df["parent_id"].fillna("") == parent_id)
+                ]
+                if not matched.empty:
+                    existing_id = matched.iloc[0]["master_id"]
+                    id_stack.append(existing_id)
+                else:
+                    id_stack.append(None)
+            else:
+                id_stack.append(None)
+            continue
 
         new_master_id = str(uuid.uuid4())
         new_rows.append({
@@ -148,7 +197,8 @@ def import_master_from_csv(user_id: str, rows: List[dict]) -> int:
             "name": name,
             "parent_id": parent_id,
         })
-        name_map[name] = new_master_id
+        existing_set.add(key)
+        id_stack.append(new_master_id)
 
     if new_rows:
         new_df = pd.DataFrame(new_rows)
